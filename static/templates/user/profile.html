@@ -5,37 +5,86 @@
             <div layout="row" layout-align="start start" layout-margin>
                 <div layout="column" layout-align="start">
                     <img ng-src="{{ vm.user.picture || '/static/images/ic_account_circle_black_48dp.png' }}" alt="Profile">
-
-                    <p class="md-display-1 md-margin-0">{{ vm.user.first_name }} {{ vm.user.last_name }}</p>
-
-                    <p>Member since {{ vm.user.created_timestamp | date:'yyyy-MM-dd' }}</p>
                 </div>
                 <div layout="column" layout-align="start" class="md-padding" flex>
                     <div class="inset">
-                        <p><span class="md-subheader">Date of Birth :</span> {{ vm.user.birthday || 'Not Available'}}</p>
-
-                        <p><span class="md-subheader">Address :</span> {{ vm.user.address || 'Not Available'}}</p>
-
-                        <p><span class="md-subheader">Nationality:</span>
-                            {{ vm.user.nationality.length || 'Not Available'}}
-                        </p>
+                        <div class="profile-info-container">
+                            <div ng-if="vm.mode=='view'">
+                                <span class="md-subheader">Date of Birth :</span> 
+                                {{ vm.user.birthday || 'Not Available'}}
+                            </div>
+                            <div ng-if="vm.mode=='edit'">
+                                <md-input-container>
+                                    <label>Date of Birth</label>
+                                    <input type="text" ng-model="vm.user.birthday" style="width:150px">
+                                </md-input-container>
+                            </div>
+                        </div>
+                        <div class="profile-info-container">
+                            <div ng-if="vm.mode=='view'">
+                                <span class="md-subheader">Address :</span>
+                                {{ vm.user.address || 'Not Available'}}
+                            </div>
+                            <div ng-if="vm.mode=='edit'">
+                                <md-input-container class="md-block">
+                                    <label>Address</label>
+                                    <textarea ng-model="vm.user.address" cols="10" md-maxlength="80" rows="3" class="md-input" aria-multiline="true" aria-invalid="false">    
+                                    </textarea>
+                                </md-input-container>
+                            </div>
+                        </div>
+                        <div class="profile-info-container">
+                            <div ng-if="vm.mode=='view'">
+                                <span class="md-subheader">Nationality:</span>
+                                {{ vm.user.nationality.join(', ') || 'Not Available'}}
+                            </div>
+                            <div ng-if="vm.mode=='edit'">
+                                <md-input-container>
+                                    <label>Nationality</label>
+                                    <input type="text" ng-model="vm.user.nationality[0]" style="width:150px">
+                                </md-input-container>
+                            </div>
+                        </div>
                     </div>
                 </div>
-                <md-menu md-position-mode="target-right target">
+                <md-menu md-position-mode="target-right target" ng-if="vm.mode=='view'" >
                     <md-button aria-label="Actions" ng-click="$mdOpenMenu($event)">Actions</md-button>
                     <md-menu-content width="2">
+                        <md-menu-item>
+                            <md-button ng-click="vm.toggleMode()">Edit Profile</md-button>
+                        </md-menu-item>
                         <md-menu-item>
                             <md-button ng-click="vm.paypal_payment($event)">Deposit</md-button>
                         </md-menu-item>
                         <md-menu-item>
-                                <md-button ng-controller="DriveController as drive"
-                                           ng-click="drive.addDriveAccount()">Connect Google Drive</md-button>
+                            <md-button ng-controller="DriveController as drive" ng-click="drive.addDriveAccount()">Connect Google Drive</md-button>
                         </md-menu-item>
                     </md-menu-content>
                 </md-menu>
+                <div ng-if="vm.mode=='edit'" style="padding:8px;margin:8px">
+                    <md-button aria-label="Update" class="md-raised" ng-click="vm.saveRecords()">Update</md-button>
+                </div>
+
 
             </div>
+            <div>
+                <div ng-if="vm.mode=='view'">
+                    <p class="md-display-1 md-margin-0">{{ vm.user.first_name }} {{ vm.user.last_name }}</p>
+                </div>
+                <div ng-if="vm.mode=='edit'">
+                    <md-input-container>
+                        <label>First Name</label>
+                         <input type="text" ng-model="vm.user.first_name" style="width:auto;">
+                    </md-input-container>
+                    <md-input-container>
+                        <label>Last Name</label>
+                        <input type="text" ng-model="vm.user.last_name" style="width:auto;">                    
+                    </md-input-container>
+                </div>
 
+                <p>Member since {{ vm.user.created_timestamp | date:'yyyy-MM-dd' }}</p>
+
+            </div>
             <md-list>
                 <div class="md-no-sticky md-subheader">Financial Accounts</div>
                 <md-list-item ng-repeat="financial_account in vm.user.financial_accounts">

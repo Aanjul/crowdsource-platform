@@ -187,6 +187,12 @@ md-toolbar {
 
 ._main-content-body {
     //width: 768px;
+    .profile-info-container {
+        margin:20px 0;
+        md-input-container{
+            margin: 0;
+        }
+    }
 }
 
 ._ml-24 {

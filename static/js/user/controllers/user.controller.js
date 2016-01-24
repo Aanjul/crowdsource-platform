@@ -19,7 +19,10 @@
                             $window, $mdToast, $mdDialog, Authentication, User, Payment) {
 
         var vm = this;
+        vm.mode="view";
         vm.paypal_payment = paypal_payment;
+        vm.saveRecords = saveRecords;
+        vm.toggleMode = toggleMode;
 
         var userAccount = Authentication.getAuthenticatedAccount();
         if (!userAccount) {
@@ -52,6 +55,20 @@
                 // Make worker id specific
                 vm.user.workerId = user.id;
             });
+        
+        function toggleMode(){
+          vm.mode = (vm.mode=='view'?'edit':'view');
+        }
+
+        function saveRecords(){
+          User.updateProfile(userAccount.username, vm.user.address,vm.user.birthday,vm.user.nationality[0])
+            .then(function(data){
+              console.log(data);
+            },function(err){
+                console.log(err);
+            })
+          vm.toggleMode();
+        }
 
         function paypal_payment($event){
             $mdDialog.show({

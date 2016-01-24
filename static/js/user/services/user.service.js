@@ -18,7 +18,8 @@
 
   function User($cookies, $http, $q, $location, HttpService) {
     var User = {
-      getProfile : getProfile
+      getProfile : getProfile,
+      updateProfile: updateProfile
     };
     return User;
 
@@ -29,6 +30,22 @@
       };
       return HttpService.doRequest(settings);
     }
-  }
+    function updateProfile(username, address, birthday, country){
+      var settings = {
+        url: '/api/profile/' + username + '/update_profile/',
+        data: {
+          address: 'New Delhi',
+          birthday: '10/07/1992',
+          city: 'New Delhi',
+          street:'Batukji Apartments',
+          gender:'Male',
+          country: 'Indian'   //no need to transfer this but for now required
+        },
+        method: 'POST'
+      };
+      return HttpService.doRequest(settings);
+    }
+
+  } 
 
 })();
