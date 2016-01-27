@@ -1,8 +1,9 @@
-from crowdsourcing.serializers.requester import *
-from crowdsourcing.serializers.project import *
 from rest_framework import viewsets
 from rest_framework.decorators import detail_route
 from rest_framework.response import Response
+
+from crowdsourcing.serializers.requester import *
+from crowdsourcing.serializers.project import *
 
 
 class RequesterViewSet(viewsets.ModelViewSet):
@@ -21,12 +22,6 @@ class RequesterViewSet(viewsets.ModelViewSet):
                                               'num_raters', 'min_pay', 'avg_pay', 'num_accepted', 'num_rejected',
                                               'total_tasks'))
         return Response(serializer.data)
-
-
-class RequesterRankingViewSet(viewsets.ModelViewSet):
-    from crowdsourcing.models import RequesterRanking
-    queryset = RequesterRanking.objects.all()
-    serializer_class = RequesterRankingSerializer
 
 
 class QualificationViewSet(viewsets.ModelViewSet):

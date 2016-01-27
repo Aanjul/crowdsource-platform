@@ -1,12 +1,13 @@
 from django.contrib.auth.models import User
 from django.db import models
 from oauth2client.django_orm import FlowField, CredentialsField
-from crowdsourcing.utils import get_delimiter
 import pandas as pd
 import os
 from django.core.exceptions import ValidationError
 from django.utils.translation import ugettext_lazy as _
 from django.contrib.postgres.fields import ArrayField, JSONField
+
+from crowdsourcing.utils import get_delimiter
 
 
 class RegistrationModel(models.Model):
@@ -81,10 +82,16 @@ class Language(models.Model):
 
 
 class UserProfile(models.Model):
+    MALE = 'M'
+    FEMALE = 'F'
+    GENDER = (
+        (MALE, 'Male'),
+        (FEMALE, 'Female')
+    )
+
     user = models.OneToOneField(User)
 
-    gender_choices = (('M', 'Male'), ('F', 'Female'))
-    gender = models.CharField(max_length=1, choices=gender_choices)
+    gender = models.CharField(max_length=1, choices=GENDER)
 
     address = models.ForeignKey(Address, null=True)
     birthday = models.DateField(null=True, error_messages={'invalid': "Please enter a correct date format"})
@@ -125,6 +132,7 @@ class Worker(models.Model):
     skills = models.ManyToManyField(Skill, through='WorkerSkill')
     deleted = models.BooleanField(default=False)
     alias = models.CharField(max_length=32, error_messages={'required': "Please enter an alias!"})
+    scope = models.CharField(max_length=32, default='daemo')
 
 
 class WorkerSkill(models.Model):
@@ -203,6 +211,17 @@ class BatchFile(models.Model):
 
 
 class Project(models.Model):
+    STATUS_SAVED = 1
+    STATUS_PUBLISHED = 2
+    STATUS_IN_PROGRESS = 3
+    STATUS_COMPLETED = 4
+    STATUS_PAUSED = 5
+
+    PERMISSION_ORW_WRW = 1
+    PERMISSION_OR_WRW = 2
+    PERMISSION_OR_WR = 3
+    PERMISSION_WR = 4
+
     name = models.CharField(max_length=128, default="Untitled Project",
                             error_messages={'required': "Please enter the project name!"})
     description = models.TextField(null=True, max_length=2048, blank=True)
@@ -211,18 +230,14 @@ class Project(models.Model):
     templates = models.ManyToManyField(Template, through='ProjectTemplate')
     categories = models.ManyToManyField(Category, through='ProjectCategory')
     keywords = models.TextField(null=True, blank=True)
-    statuses = ((1, 'Saved'),
-                (2, 'Published'),
-                (3, 'In Progress'),
-                (4, 'Completed'),
-                (5, 'Paused')
-                )
-    permission_types = ((1, "Others:Read+Write::Workers:Read+Write"),
-                        (2, 'Others:Read::Workers:Read+Write'),
-                        (3, 'Others:Read::Workers:Read'),
-                        (4, 'Others:None::Workers:Read')
-                        )
-    status = models.IntegerField(choices=statuses, default=1)
+    STATUS = (
+        (STATUS_SAVED, 'Saved'),
+        (STATUS_PUBLISHED, 'Published'),
+        (STATUS_IN_PROGRESS, 'In Progress'),
+        (STATUS_COMPLETED, 'Completed'),
+        (STATUS_PAUSED, 'Paused')
+    )
+    status = models.IntegerField(choices=STATUS, default=STATUS_SAVED)
     price = models.FloatField(null=True, blank=True)
     repetition = models.IntegerField(default=1)
     timeout = models.IntegerField(default=0)
@@ -237,7 +252,13 @@ class Project(models.Model):
     is_prototype = models.BooleanField(default=True)
     min_rating = models.FloatField(default=0)
     allow_feedback = models.BooleanField(default=True)
-    feedback_permissions = models.IntegerField(choices=permission_types, default=1)
+    PERMISSION = (
+        (PERMISSION_ORW_WRW, 'Others:Read+Write::Workers:Read+Write'),
+        (PERMISSION_OR_WRW, 'Others:Read::Workers:Read+Write'),
+        (PERMISSION_OR_WR, 'Others:Read::Workers:Read'),
+        (PERMISSION_WR, 'Others:None::Workers:Read')
+    )
+    feedback_permissions = models.IntegerField(choices=PERMISSION, default=PERMISSION_ORW_WRW)
     batch_files = models.ManyToManyField(BatchFile, through='ProjectBatchFile')
 
     def save(self, force_insert=False, force_update=False, using=None,
@@ -246,7 +267,7 @@ class Project(models.Model):
         super(Project, self).save()
 
     def validate_null(self):
-        if self.status == 3 and (not self.price or not self.repetition):
+        if self.status == self.STATUS_IN_PROGRESS and (not self.price or not self.repetition):
             raise ValidationError(_('Fields price and repetition are required!'), code='required')
 
 
@@ -261,9 +282,16 @@ class ProjectCategory(models.Model):
 
 
 class TemplateItem(models.Model):
+    ROLE_DISPLAY = 'display'
+    ROLE_INPUT = 'input'
+
+    ROLE = (
+        (ROLE_DISPLAY, 'Display'),
+        (ROLE_INPUT, 'Input'),
+    )
     name = models.CharField(max_length=128, default='')
     template = models.ForeignKey(Template, related_name='template_items', on_delete=models.CASCADE)
-    role = models.CharField(max_length=16, default='display')
+    role = models.CharField(max_length=16, choices=ROLE, default=ROLE_DISPLAY)
     type = models.CharField(max_length=16)
     sub_type = models.CharField(max_length=16, null=True)
     position = models.IntegerField()
@@ -282,7 +310,7 @@ class ProjectTemplate(models.Model):
     template = models.ForeignKey(Template, on_delete=models.CASCADE)
 
     class Meta:
-        unique_together = ('project', 'template', )
+        unique_together = ('project', 'template',)
 
 
 class TemplateItemProperties(models.Model):
@@ -296,15 +324,21 @@ class TemplateItemProperties(models.Model):
 
 
 class Task(models.Model):
+    STATUS_CREATED = 1
+    STATUS_ACCEPTED = 2
+    STATUS_ASSIGNED = 3
+    STATUS_FINISHED = 4
+
     project = models.ForeignKey(Project, related_name='project_tasks', on_delete=models.CASCADE)
-    # TODO: To be refined
-    statuses = ((1, "Created"),
-                (2, 'Accepted'),
-                (3, 'Assigned'),
-                (4, 'Finished')
-                )
-    status = models.IntegerField(choices=statuses, default=1)
-    data = models.TextField(null=True)
+
+    STATUS = (
+        (STATUS_CREATED, "Created"),
+        (STATUS_ACCEPTED, 'Accepted'),
+        (STATUS_ASSIGNED, 'Assigned'),
+        (STATUS_FINISHED, 'Finished')
+    )
+    status = models.IntegerField(choices=STATUS, default=STATUS_CREATED)
+    data = JSONField(null=True)
     deleted = models.BooleanField(default=False)
     created_timestamp = models.DateTimeField(auto_now_add=True, auto_now=False)
     last_updated = models.DateTimeField(auto_now_add=False, auto_now=True)
@@ -312,31 +346,47 @@ class Task(models.Model):
 
 
 class TaskWorker(models.Model):
+    STATUS_IN_PROGRESS = 1
+    STATUS_SUBMITTED = 2
+    STATUS_ACCEPTED = 3
+    STATUS_REJECTED = 4
+    STATUS_RETURNED = 5
+    STATUS_SKIPPED = 6
+
     task = models.ForeignKey(Task, related_name='task_workers', on_delete=models.CASCADE)
     worker = models.ForeignKey(Worker)
-    statuses = ((1, 'In Progress'),
-                (2, 'Submitted'),
-                (3, 'Accepted'),
-                (4, 'Rejected'),
-                (5, 'Returned'),
-                (6, 'Skipped')
-                )
-    task_status = models.IntegerField(choices=statuses, default=1)
+    STATUS = (
+        (STATUS_IN_PROGRESS, 'In Progress'),
+        (STATUS_SUBMITTED, 'Submitted'),
+        (STATUS_ACCEPTED, 'Accepted'),
+        (STATUS_REJECTED, 'Rejected'),
+        (STATUS_RETURNED, 'Returned'),
+        (STATUS_SKIPPED, 'Skipped')
+    )
+    task_status = models.IntegerField(choices=STATUS, default=STATUS_IN_PROGRESS)
     created_timestamp = models.DateTimeField(auto_now_add=True, auto_now=False)
     last_updated = models.DateTimeField(auto_now_add=False, auto_now=True)
     is_paid = models.BooleanField(default=False)
 
+    class Meta:
+        unique_together = ('task', 'worker',)
+
 
 class TaskWorkerResult(models.Model):
+    STATUS_CREATED = 1
+    STATUS_ACCEPTED = 2
+    STATUS_REJECTED = 3
+
     task_worker = models.ForeignKey(TaskWorker, related_name='task_worker_results', on_delete=models.CASCADE)
     result = JSONField(null=True)
     template_item = models.ForeignKey(TemplateItem)
-    # TODO: To be refined
-    statuses = ((1, 'Created'),
-                (2, 'Accepted'),
-                (3, 'Rejected')
-                )
-    status = models.IntegerField(choices=statuses, default=1)
+
+    STATUS = (
+        (STATUS_CREATED, 'Created'),
+        (STATUS_ACCEPTED, 'Accepted'),
+        (STATUS_REJECTED, 'Rejected')
+    )
+    status = models.IntegerField(choices=STATUS, default=STATUS_CREATED)
     created_timestamp = models.DateTimeField(auto_now_add=True, auto_now=False)
     last_updated = models.DateTimeField(auto_now_add=False, auto_now=True)
 
@@ -351,11 +401,16 @@ class ActivityLog(models.Model):
 
 
 class Qualification(models.Model):
+    TYPE_STRICT = 1
+    TYPE_FLEXIBLE = 2
+
     project = models.ForeignKey(Project)
-    # TODO: To be refined
-    types = ((1, "Strict"),
-             (2, 'Flexible'))
-    type = models.IntegerField(choices=types, default=1)
+
+    TYPE = (
+        (TYPE_STRICT, "Strict"),
+        (TYPE_FLEXIBLE, 'Flexible')
+    )
+    type = models.IntegerField(choices=TYPE, default=TYPE_STRICT)
     created_timestamp = models.DateTimeField(auto_now_add=True, auto_now=False)
     last_updated = models.DateTimeField(auto_now_add=False, auto_now=True)
 
@@ -388,15 +443,6 @@ class UserPreferences(models.Model):
     currency = models.ForeignKey(Currency)
     login_alerts = models.SmallIntegerField(default=0)
     last_updated = models.DateTimeField(auto_now_add=False, auto_now=True)
-
-
-class RequesterRanking(models.Model):
-    requester_name = models.CharField(max_length=128)
-    requester_payRank = models.FloatField()
-    requester_fairRank = models.FloatField()
-    requester_speedRank = models.FloatField()
-    requester_communicationRank = models.FloatField()
-    requester_numberofReviews = models.IntegerField(default=0)
 
 
 class FlowModel(models.Model):
@@ -439,11 +485,20 @@ class Conversation(models.Model):
 
 
 class Message(models.Model):
+    STATUS_SENT = 1
+    STATUS_DELIVERED = 2
+    STATUS_READ = 3
+
+    STATUS = (
+        (STATUS_SENT, "Sent"),
+        (STATUS_DELIVERED, 'Delivered'),
+        (STATUS_READ, 'Read')
+    )
     conversation = models.ForeignKey(Conversation, related_name='messages')
     sender = models.ForeignKey(User)
     body = models.TextField(max_length=8192)
     deleted = models.BooleanField(default=False)
-    status = models.IntegerField(default=1)  # 1:Sent 2:Delivered 3:Read
+    status = models.IntegerField(choices=STATUS, default=STATUS_SENT)
     created_timestamp = models.DateTimeField(auto_now_add=True, auto_now=False)
     last_updated = models.DateTimeField(auto_now_add=False, auto_now=True)
 
@@ -471,7 +526,6 @@ class ProjectBatchFile(models.Model):
 class WorkerRequesterRating(models.Model):
     origin = models.ForeignKey(UserProfile, related_name='rating_origin')
     target = models.ForeignKey(UserProfile, related_name='rating_target')
-    project = models.ForeignKey(Project, related_name='rating_project')
     weight = models.FloatField(default=2)
     origin_type = models.CharField(max_length=16)
     created_timestamp = models.DateTimeField(auto_now_add=True, auto_now=False)
@@ -519,7 +573,7 @@ class FinancialAccount(models.Model):
 class PayPalFlow(models.Model):
     paypal_id = models.CharField(max_length=128)
     state = models.CharField(max_length=16, default='created')
-    recipient = models.ForeignKey(FinancialAccount, related_name='flow_recipient')
+    recipient = models.ForeignKey(FinancialAccount, related_name='flows_received')
     created_timestamp = models.DateTimeField(auto_now_add=True, auto_now=False)
     last_updated = models.DateTimeField(auto_now_add=False, auto_now=True)
     redirect_url = models.CharField(max_length=256)
@@ -527,13 +581,13 @@ class PayPalFlow(models.Model):
 
 
 class Transaction(models.Model):
-    amount = models.DecimalField(decimal_places=4, max_digits=19)
-    state = models.CharField(max_length=16, default='created')
-    method = models.CharField(max_length=16, default='paypal')
-    sender_type = models.CharField(max_length=8, default='self')
-    sender = models.ForeignKey(FinancialAccount, related_name='transaction_sender')
-    recipient = models.ForeignKey(FinancialAccount, related_name='transaction_recipient')
-    reference = models.CharField(max_length=256, null=True)
+    sender = models.ForeignKey(FinancialAccount, related_name='transactions_sent')
+    recipient = models.ForeignKey(FinancialAccount, related_name='transactions_received')
     currency = models.CharField(max_length=4, default='USD')
+    amount = models.DecimalField(decimal_places=4, max_digits=19)
+    method = models.CharField(max_length=16, default='paypal')
+    state = models.CharField(max_length=16, default='created')
+    sender_type = models.CharField(max_length=8, default='self')
+    reference = models.CharField(max_length=256, null=True)
     created_timestamp = models.DateTimeField(auto_now_add=True, auto_now=False)
     last_updated = models.DateTimeField(auto_now_add=False, auto_now=True)

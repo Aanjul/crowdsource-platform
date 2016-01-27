@@ -20,6 +20,7 @@ env/
 build/
 develop-eggs/
 downloads/
+media/
 eggs/
 .eggs/
 lib/
@@ -111,3 +112,4 @@ db.sqlite3
 .project
 .settings/
 .sass-cache
+node_modules

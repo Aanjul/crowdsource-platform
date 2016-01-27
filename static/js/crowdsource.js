@@ -3,6 +3,7 @@ angular
     // third party modules
     'angular-loading-bar',
     'ngFx',
+    'ngMessages',
     'ngAnimate',
     'ngSanitize',
     'ngMaterial',
@@ -16,24 +17,25 @@ angular
     'crowdsource.routes',
     'crowdsource.localstorage',
     'crowdsource.authentication',
-    'crowdsource.dashboard',
     'crowdsource.layout',
     'crowdsource.home',
     'crowdsource.requester',
-    'crowdsource.ranking',
+    'crowdsource.rating',
     'crowdsource.task',
     'crowdsource.directives',
     'crowdsource.services',
     'crowdsource.worker',
     'crowdsource.skill',
     'crowdsource.project',
+    'crowdsource.payment',
     'crowdsource.task-feed',
     'crowdsource.task-worker',
     'crowdsource.template',
     'crowdsource.drive',
     'crowdsource.data-table',
     'crowdsource.user',
-    'crowdsource.helpers'
+    'crowdsource.helpers',
+    'crowdsource.contributor'
   ]);
 
 angular

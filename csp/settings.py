@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/1.8/ref/settings/
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 import logging
+from datetime import timedelta
 import os
 import django
 import dj_database_url
@@ -25,7 +26,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SECRET_KEY = 'v1*ah#)@vyov!7c@n&c2^-*=8d)-d!u9@#c4o*@k=1(1!jul6&'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+DEBUG = os.environ.get('DEBUG', False)
 
 TEMPLATE_DEBUG = DEBUG
 APPEND_SLASH = True
@@ -75,7 +76,8 @@ INSTALLED_APPS = (
     'crispy_forms',
     'rest_framework',
     'oauth2_provider',
-    'crowdsourcing'
+    'crowdsourcing',
+    'mturk'
 )
 
 MIDDLEWARE_CLASSES = (
@@ -95,8 +97,8 @@ AUTHENTICATION_BACKENDS = (
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [os.path.join(BASE_DIR, 'static/django_templates')],
-        'APP_DIRS':True,
+        'DIRS': [os.path.join(BASE_DIR, 'static/django_templates'), os.path.join(BASE_DIR, 'static/mturk')],
+        'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
                 'django.template.context_processors.debug',
@@ -156,37 +158,20 @@ EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 EMAIL_ENABLED = True
 EMAIL_SENDER = 'daemo@cs.stanford.edu'
-EMAIL_SENDER_DEV = 'crowdsourcing.platform.demo@gmail.com'
-EMAIL_SENDER_PASSWORD_DEV = 'crowdsourcing.demo.2015'
-SENDGRID_API_KEY = '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'
+EMAIL_SENDER_DEV = ''
+EMAIL_SENDER_PASSWORD_DEV = ''
+SENDGRID_API_KEY = os.environ.get('SENDGRID_API_KEY', '')
 
 # Others
-REGISTRATION_ALLOWED = False
-PASSWORD_RESET_ALLOWED = True
-
-LOGIN_URL = '/login'
-# SESSION_ENGINE = 'redis_sessions.session'
-
-# Security
-# SESSION_COOKIE_SECURE = True
-# CSRF_COOKIE_SECURE = True
-PYTHON_VERSION = 2
-try:
-    from local_settings import *
-except Exception as e:
-    pass
-
 GRAPH_MODELS = {
     'all_applications': True,
     'group_models': True,
 }
 
-if float(django.get_version()) < 1.8:
+if float(django.get_version()[0:3]) < 1.8:
     FIXTURE_DIRS = (
         os.path.join(BASE_DIR, 'fixtures')
     )
-
-USERNAME_MAX_LENGTH = 30
 
 # Google Drive
 GOOGLE_DRIVE_CLIENT_ID = '960606345011-3bn8sje38i9c0uo8p87ln6tfb2dhco9v.apps.googleusercontent.com'
@@ -204,23 +189,35 @@ PAYPAL_API_URL = 'https://api.sandbox.paypal.com'
 PAYPAL_CLIENT_ID = 'ASMOowufDMA_QZ_XgjbyF4WTzeSGMBJlZq5mefCP02zjWOk92BD2NyrztHZIR_ZGny8qKD4n7SQel2wy'
 PAYPAL_CLIENT_SECRET = 'EGhnNaEAUWjLuXLF5jLuR1sOlhi0CFtT9hqIuGOvKtFUZhHiVQH046l2PxhzvvN5Nw9aU4ZoE_HHMgoD'
 
-# Secure Settings
-if not DEBUG:
-    # Honor the 'X-Forwarded-Proto' header for request.is_secure()
-    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-    SECURE_HSTS_SECONDS = 31536000
-    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-    SECURE_FRAME_DENY = True
-    SECURE_CONTENT_TYPE_NOSNIFF = True
-    SECURE_BROWSER_XSS_FILTER = True
-    SESSION_COOKIE_SECURE = False
-    CSRF_COOKIE_SECURE = True
-    SESSION_COOKIE_HTTPONLY = True
-    SECURE_SSL_REDIRECT = True
-    CSRF_TRUSTED_ORIGINS = [
-        'daemo.herokuapp.com', 'daemo.stanford.edu',
-        'daemo-staging.herokuapp.com', 'daemo-staging.stanford.edu'
-    ]
+REGISTRATION_ALLOWED = os.environ.get('REGISTRATION_ALLOWED', False)
+PASSWORD_RESET_ALLOWED = True
+
+# MTurk
+MTURK_CLIENT_ID = os.environ.get('MTURK_CLIENT_ID', 'INVALID')
+MTURK_CLIENT_SECRET = os.environ.get('MTURK_CLIENT_SECRET', 'INVALID')
+MTURK_HOST = 'mechanicalturk.sandbox.amazonaws.com'
+MTURK_HASH_MIN_LENGTH = 8
+MTURK_WORKER_USERNAME = 'mturk'
+MTURK_QUALIFICATIONS = os.environ.get('MTURK_QUALIFICATIONS', True)
+
+# Celery
+BROKER_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379')
+CELERY_RESULT_BACKEND = os.environ.get('REDIS_URL', 'redis://localhost:6379')
+CELERY_ACCEPT_CONTENT = ['application/json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'America/Los_Angeles'
+
+CELERYBEAT_SCHEDULE = {
+    'mturk-every-30min': {
+        'task': 'mturk.tasks.mturk_publish',
+        'schedule': timedelta(seconds=60),
+    },
+}
+
+LOGIN_URL = '/login'
+USERNAME_MAX_LENGTH = 30
+SITE_HOST = os.environ.get('SITE_HOST', 'https://daemo.herokuapp.com')
 
 # MANAGER CONFIGURATION
 # ------------------------------------------------------------------------------
@@ -288,8 +285,34 @@ class SuppressDeprecated(logging.Filter):
     def filter(self, record):
         warnings = [
             'RemovedInDjango18Warning',
-            'RemovedInDjango19Warning'
+            'RemovedInDjango19Warning',
+            'RemovedInDjango110Warning:',
         ]
 
         # Return false to suppress message.
         return not any([warn in record.getMessage() for warn in warnings])
+
+
+PYTHON_VERSION = 2
+try:
+    from local_settings import *
+except Exception as e:
+    pass
+
+# Secure Settings
+if not DEBUG:
+    # Honor the 'X-Forwarded-Proto' header for request.is_secure()
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SECURE_HSTS_SECONDS = 31536000
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_FRAME_DENY = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    SECURE_BROWSER_XSS_FILTER = True
+    SESSION_COOKIE_SECURE = False
+    CSRF_COOKIE_SECURE = True
+    SESSION_COOKIE_HTTPONLY = True
+    SECURE_SSL_REDIRECT = True
+    CSRF_TRUSTED_ORIGINS = [
+        'daemo.herokuapp.com', 'daemo.stanford.edu',
+        'daemo-staging.herokuapp.com', 'daemo-staging.stanford.edu'
+    ]
